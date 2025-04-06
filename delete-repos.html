@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>GitHub 仓库批量删除工具</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; background: #f9f9f9; }
+    input, button { padding: 8px; margin: 5px 0; width: 100%; }
+    .repo-list { max-height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ccc; padding: 10px; }
+    .repo-item { margin-bottom: 5px; }
+    .danger { color: red; font-weight: bold; }
+    details { background: #eef; padding: 10px; border-radius: 5px; margin-top: 10px; }
+    summary { font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>🧹 GitHub 仓库批量删除工具</h2>
+  <p>✅ 本工具完全在你的浏览器本地运行，<strong>不会上传任何数据</strong>，放心使用。</p>
+
+  <label>👤 GitHub 用户名：</label>
+  <input type="text" id="username" placeholder="例如：Hupan">
+  <label>🔑 GitHub Token：</label>
+  <input type="password" id="token" placeholder="粘贴你的 GitHub Token">
+  <button onclick="fetchRepos()">获取仓库列表</button>
+
+  <div class="repo-list" id="repoList"></div>
+
+  <button class="danger" onclick="deleteSelected()">🚨 删除选中仓库</button>
+
+  <details>
+    <summary>📘 如何获取正确的 GitHub Token？（点击展开教程）</summary>
+    <ol>
+      <li>访问 <a href="https://github.com/settings/tokens" target="_blank">https://github.com/settings/tokens</a></li>
+      <li>点击右上角 <strong>Generate new token (classic)</strong></li>
+      <li>填写名字，建议有效期设为 <strong>1 天</strong></li>
+      <li>勾选权限：<strong>repo</strong> 和 <strong>delete_repo</strong></li>
+      <li>点击生成，复制生成的 Token 粘贴到本页面使用</li>
+    </ol>
+    <p>🔐 这是你删除仓库的“钥匙”，请妥善保管，使用后建议删除该 Token。</p>
+  </details>
+
+  <script>
+    let repos = [];
+
+    async function fetchRepos() {
+      const username = document.getElementById("username").value;
+      const token = document.getElementById("token").value;
+      if (!username || !token) return alert("请输入用户名和 Token");
+
+      repos = [];
+      let page = 1;
+      document.getElementById("repoList").innerHTML = "🔄 加载中...";
+
+      while (true) {
+        const res = await fetch(`https://api.github.com/user/repos?per_page=100&page=${page}`, {
+          headers: { Authorization: `token ${token}` }
+        });
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) break;
+        repos = repos.concat(data);
+        page++;
+      }
+
+      let html = repos.map((repo, i) => `
+        <div class="repo-item">
+          <input type="checkbox" id="repo${i}" checked>
+          <label for="repo${i}">${repo.full_name}</label>
+        </div>`).join("");
+
+      document.getElementById("repoList").innerHTML = `<p>共 ${repos.length} 个仓库：</p>` + html;
+    }
+
+    async function deleteSelected() {
+      const token = document.getElementById("token").value;
+      const confirmDelete = confirm("你确定要删除选中的仓库吗？此操作不可恢复！");
+      if (!confirmDelete) return;
+
+      for (let i = 0; i < repos.length; i++) {
+        const checkbox = document.getElementById("repo" + i);
+        if (checkbox && checkbox.checked) {
+          const delRes = await fetch(`https://api.github.com/repos/${repos[i].full_name}`, {
+            method: "DELETE",
+            headers: { Authorization: `token ${token}` }
+          });
+          if (delRes.status === 204) {
+            checkbox.parentElement.innerHTML += " ✅ 删除成功";
+          } else {
+            checkbox.parentElement.innerHTML += ` ❌ 删除失败（状态码 ${delRes.status}）`;
+          }
+        }
+      }
+    }
+  </script>
+</body>
+</html>
